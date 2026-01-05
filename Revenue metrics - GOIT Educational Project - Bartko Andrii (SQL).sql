@@ -1,4 +1,4 @@
--- Агрегація всіх платежів помісячно (user_id + payment_month)
+-- Monthly aggregation of all payments by user (user_id + payment_month)
 WITH monthly_revenue AS (
     SELECT
         gp.user_id,
@@ -7,7 +7,7 @@ WITH monthly_revenue AS (
     FROM project.games_payments AS gp
     GROUP BY gp.user_id, DATE_TRUNC('month', gp.payment_date)
 ),
--- Профіль користувача: перший/останній платний місяць та LTV (сума revenue по всім місяцям)
+-- User profile: first and last paid month and LTV (total revenue across all months)
 user_profile AS (
     SELECT
         user_id,
@@ -17,7 +17,7 @@ user_profile AS (
     FROM monthly_revenue
     GROUP BY user_id
 ),
--- календар місяців (від мінімального до максимального місяця у даних)
+-- Calendar of months (from the minimum to the maximum month in the data)
 months_range AS (
     SELECT
         (DATE_TRUNC('month', MIN(payment_month))::date) AS min_month,
@@ -28,7 +28,7 @@ calendar AS (
     SELECT generate_series(min_month, max_month, interval '1 month')::date AS calendar_month
     FROM months_range
 ),
--- для кожного user беремо всі місяці (calendar) -> дозволяє виявляти churn / back-from-churn
+-- For each user, include all months (calendar) -> allows identifying churn / return from churn
 user_months AS (
     SELECT
         u.user_id,
@@ -36,7 +36,7 @@ user_months AS (
     FROM (SELECT DISTINCT user_id FROM monthly_revenue) u
     CROSS JOIN calendar c
 ),
--- приєднуємо реальні місячні revenue (0 якщо не платив)
+-- Join actual monthly revenue (0 if the user did not pay)
 user_months_with_revenue AS (
     SELECT
         um.user_id,
@@ -47,8 +47,8 @@ user_months_with_revenue AS (
         ON um.user_id = mr.user_id
         AND um.payment_month = mr.payment_month
 ),
--- Порівняння місяців для кожного user (попередній місяць та його revenue),
--- а також додаткові допоміжні поля (paid-флаги, останній платіж до поточного місяця)
+-- Comparison of months for each user (previous month and its revenue),
+-- as well as additional helper fields (paid flags, last payment before the current month)
 settlement_months AS (
     SELECT
         umwr.user_id,
@@ -63,7 +63,7 @@ settlement_months AS (
                   ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS last_paid_before_current
     FROM user_months_with_revenue umwr
 ),
--- Розрахунок економічних метрик на рівні user + payment_month
+-- Calculation of economic metrics at the user + payment_month level
 metrics AS (
     SELECT
         sm.user_id,
@@ -141,4 +141,5 @@ SELECT
     age_group AS "Age Group"
 FROM metrics
 ORDER BY "User ID", "Date";
+
 
